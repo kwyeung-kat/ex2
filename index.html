@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>比喻成分配對與結構勾選練習 | 樂華天主教小學</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <!-- Google Fonts: Noto Sans TC -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f4f4f6;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    /* 頂部四張標籤卡（喻詞、本體、繫詞、喻體） */
+    .tag-card {
+      background: #ffffff;
+      border: 3px solid #1e293b;
+      border-radius: 16px;
+      box-shadow: 0 4px 0 #1e293b;
+      cursor: grab;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+      touch-action: none;
+    }
+    .tag-card:active {
+      cursor: grabbing;
+      transform: scale(1.05);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+    }
+    .tag-card.selected-for-tap {
+      border-color: #4f46e5;
+      box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.35), 0 4px 0 #4f46e5;
+      transform: translateY(-2px);
+    }
+    .tag-card.used-card {
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    /* 句子下方的放置方格 */
+    .slot-box {
+      border: 3px solid #1e293b;
+      border-radius: 14px;
+      background-color: #ffffff;
+      transition: all 0.2s ease;
+    }
+    .slot-box.slot-hover {
+      border-color: #4f46e5;
+      background-color: #eef2ff;
+      transform: scale(1.03);
+    }
+    .slot-box.slot-filled {
+      background-color: #fef9c3;
+      border-color: #ca8a04;
+    }
+
+    /* 晃動動畫（放錯時溫和提示） */
+    @keyframes gentle-shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+    .shake-box {
+      animation: gentle-shake 0.35s ease;
+      border-color: #ef4444 !important;
+      background-color: #fee2e2 !important;
+    }
+
+    /* 結果框彈出動畫（明喻句 / 暗喻句） */
+    @keyframes pop-in {
+      0% { opacity: 0; transform: scale(0.85) translateY(10px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .result-banner-pop {
+      animation: pop-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    /* 勾選表格樣式（還原手繪表格設計） */
+    .check-table {
+      border: 3px solid #111827;
+      border-collapse: collapse;
+    }
+    .check-table th, .check-table td {
+      border: 2.5px solid #111827;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-3 sm:p-6">
+
+  <!-- 頂部標題列 -->
+  <header class="max-w-5xl w-full mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-wrap justify-between items-center gap-3">
+    <div class="flex items-center gap-3">
+      <span class="text-3xl">🧩</span>
+      <div>
+        <h1 class="text-lg sm:text-xl font-black text-slate-800">修辭結構配對與總結練習</h1>
+        <p class="text-xs sm:text-sm text-slate-500">先找出句子的修辭成分，再在表格上勾選「明喻」與「暗喻」的特點！</p>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <span id="sync-status-badge" class="bg-amber-50 text-amber-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-amber-300 flex items-center gap-1.5 transition">
+        <span>⏳</span> 正在連線至雲端...
+      </span>
+      <span id="current-group-badge" class="hidden bg-indigo-100 text-indigo-900 font-black text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-indigo-200">
+        👑 組長：<span id="leader-name-text">--</span>
+      </span>
+      <span id="step-indicator" class="hidden bg-amber-100 text-amber-900 font-black text-xs sm:text-sm px-3.5 py-2 rounded-xl border border-amber-200">
+        第 1 題 / 共 3 題
+      </span>
+      <button onclick="showOverviewView()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm px-3.5 py-2 rounded-xl shadow-xs transition flex items-center gap-1.5">
+        <span>👀</span> 查看 5 組答案總覽
+      </button>
+    </div>
+  </header>
+
+  <!-- 主內容區 -->
+  <main class="max-w-5xl w-full mx-auto my-auto py-4">
+
+    <!-- ================= 畫面 1：選擇五組組長入口 ================= -->
+    <div id="group-select-view" class="bg-white rounded-3xl shadow-lg border border-slate-200 p-6 sm:p-10 max-w-2xl mx-auto text-center space-y-6">
+      <div class="text-5xl">👥🧩</div>
+      <div class="space-y-1.5">
+        <h2 class="text-2xl sm:text-3xl font-black text-slate-800">請點選你們組長的名字</h2>
+        <p class="text-sm text-slate-500">點選組長按鍵後，即可開始進行小組修辭成分配對與表格勾選練習</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2" id="leader-buttons-grid">
+        <!-- JS 動態生成 5 位組長按鈕 -->
+      </div>
+    </div>
+
+    <!-- ================= 階段一：三題句子成分配對 ================= -->
+    <div id="drag-stage-view" class="hidden bg-white rounded-3xl shadow-lg border border-slate-200 p-5 sm:p-10 space-y-8">
+      
+      <!-- 頂部四張標籤卡（喻詞、本體、繫詞、喻體） -->
+      <div class="space-y-2.5">
+        <div class="text-xs sm:text-sm font-bold text-slate-500 text-center">
+          👆 請把下面的標籤拖放（或先點選標籤再點下方空格）到對應詞語下面的方格內：
+        </div>
+        <div id="tags-pool" class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5 max-w-2xl mx-auto">
+          <!-- JS 動態生成：喻詞、本體、繫詞、喻體 -->
+        </div>
+      </div>
+
+      <!-- 中央句子與對應方格區 -->
+      <div class="bg-slate-50 border-2 border-slate-200 rounded-3xl p-6 sm:p-8 max-w-3xl mx-auto">
+        <div class="flex justify-end mb-2">
+          <button type="button" onclick="speakCurrentSentence()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl shadow-xs flex items-center gap-1">
+            <span>🔊</span> 朗讀句子
+          </button>
+        </div>
+
+        <!-- 句子字詞與下方方格並排對齊 -->
+        <div id="sentence-slots-grid" class="flex flex-wrap justify-center items-start gap-2 sm:gap-4">
+          <!-- JS 動態生成每個詞語及其正下方的放置方格 -->
+        </div>
+
+        <!-- 溫和糾錯提示文字 -->
+        <div id="hint-message" class="hidden mt-5 text-center text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl py-2.5 px-4">
+          --
+        </div>
+      </div>
+
+      <!-- 完成後自動彈出的大結果框（「明喻句」或「暗喻句」） -->
+      <div id="revealed-type-box" class="hidden max-w-md mx-auto text-center space-y-5 result-banner-pop">
+        <div id="revealed-type-banner" class="border-4 border-slate-900 rounded-2xl py-4 px-8 bg-amber-300 shadow-md">
+          <span id="revealed-type-text" class="text-3xl sm:text-4xl font-black text-slate-900 tracking-widest">
+            明喻句
+          </span>
+        </div>
+
+        <button id="next-step-btn" onclick="goToNextPart()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black text-lg py-4 rounded-2xl shadow-lg transition">
+          ➡️ 進入第 2 題
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ================= 階段二：下一頁打勾總結表（比喻法｜本體｜喻詞｜繫詞｜喻體） ================= -->
+    <div id="checklist-stage-view" class="hidden bg-white rounded-3xl shadow-lg border border-slate-200 p-5 sm:p-10 space-y-6">
+      
+      <div class="text-center space-y-1.5">
+        <h2 class="text-2xl sm:text-3xl font-black text-slate-800">修辭結構總結表：請在表格內打勾（✓）</h2>
+        <p class="text-sm text-slate-500">請與組員商量，點選「明喻」和「暗喻」各自包含哪些成分（可隨時點擊修改）：</p>
+      </div>
+
+      <!-- 三句剛才完成的句子提示條 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-3xl mx-auto text-center">
+        <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3">
+          <span class="text-xs font-black text-amber-800 block">第 1 題（明喻句）</span>
+          <span class="text-sm font-black text-slate-900">星星（本體）＋ 像（喻詞）＋ 鑽石（喻體）</span>
+        </div>
+        <div class="bg-pink-50 border-2 border-pink-300 rounded-2xl p-3">
+          <span class="text-xs font-black text-pink-800 block">第 2 題（暗喻句）</span>
+          <span class="text-sm font-black text-slate-900">月亮（本體）＋ 是（繫詞）＋ 一隻小船（喻體）</span>
+        </div>
+        <div class="bg-amber-50 border-2 border-amber-300 rounded-2xl p-3">
+          <span class="text-xs font-black text-amber-800 block">第 3 題（明喻句）</span>
+          <span class="text-sm font-black text-slate-900">手指（本體）＋ 似的（喻詞）＋ 竹枝（喻體）</span>
+        </div>
+      </div>
+
+      <!-- 打勾互動表格 -->
+      <div class="overflow-x-auto max-w-2xl mx-auto">
+        <table class="check-table w-full text-center bg-white">
+          <thead>
+            <tr class="bg-slate-100 text-slate-900 text-lg sm:text-xl font-black">
+              <th class="py-4 px-3 w-1/5">比喻法</th>
+              <th class="py-4 px-3 w-1/5">本體</th>
+              <th class="py-4 px-3 w-1/5">喻詞</th>
+              <th class="py-4 px-3 w-1/5">繫詞</th>
+              <th class="py-4 px-3 w-1/5">喻體</th>
+            </tr>
+          </thead>
+          <tbody class="text-xl sm:text-2xl font-black">
+            <!-- 第一行：明喻 -->
+            <tr class="bg-amber-50/40">
+              <td class="py-6 px-3 text-slate-900 bg-amber-100/70">明喻</td>
+              <td onclick="toggleCheckCell('ming', 'benti')" id="cell-ming-benti" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+              <td onclick="toggleCheckCell('ming', 'yuci')" id="cell-ming-yuci" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+              <td onclick="toggleCheckCell('ming', 'xici')" id="cell-ming-xici" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+              <td onclick="toggleCheckCell('ming', 'yuti')" id="cell-ming-yuti" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+            </tr>
+            <!-- 第二行：暗喻 -->
+            <tr class="bg-pink-50/40">
+              <td class="py-6 px-3 text-slate-900 bg-pink-100/70">暗喻</td>
+              <td onclick="toggleCheckCell('an', 'benti')" id="cell-an-benti" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+              <td onclick="toggleCheckCell('an', 'yuci')" id="cell-an-yuci" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+              <td onclick="toggleCheckCell('an', 'xici')" id="cell-an-xici" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+              <td onclick="toggleCheckCell('an', 'yuti')" id="cell-an-yuti" class="py-6 px-3 cursor-pointer hover:bg-indigo-50 transition select-none"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 底部重設與提交按鈕 -->
+      <div class="max-w-2xl mx-auto flex flex-wrap justify-between items-center gap-3 pt-2">
+        <button onclick="resetCurrentGroupChecklist()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-sm px-5 py-3.5 rounded-xl transition">
+          🔄 清空重新打勾
+        </button>
+
+        <button id="submit-practice-btn" onclick="submitGroupPractice()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black text-base sm:text-lg px-8 py-3.5 rounded-2xl shadow-lg transition flex items-center gap-2">
+          <span>✅</span> 完成並提交本組答案
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ================= 畫面 3：教師同一頁檢視 5 組答案總覽（不批改對錯） ================= -->
+    <div id="overview-view" class="hidden space-y-5">
+      
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex flex-wrap justify-between items-center gap-3 shadow-xs">
+        <div>
+          <h2 class="text-xl font-black text-slate-800 flex items-center gap-2">
+            <span>📋</span> 五組修辭結構總結表一覽（共賞與討論）
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-500 mt-0.5">即時同步呈現 5 組在「明喻」與「暗喻」表格上的勾選結果（不批改對錯，錯誤是學習的好機會！）</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="backToGroupSelect()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-xs transition">
+            ➕ 返回組長入口
+          </button>
+          <button onclick="openClearConfirmModal()" class="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold text-xs sm:text-sm px-3.5 py-2.5 rounded-xl transition">
+            🗑️ 清空全部紀錄
+          </button>
+        </div>
+      </div>
+
+      <!-- 5 組並排卡片網格 -->
+      <div id="five-groups-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- JS 動態生成 5 組各自勾選的總結表 -->
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- 自訂清空確認彈窗 -->
+  <div id="clear-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+    <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl text-center space-y-4">
+      <div class="text-4xl">🗑️</div>
+      <h3 class="text-lg font-black text-slate-800">清空全部 5 組紀錄？</h3>
+      <p class="text-sm text-slate-600 leading-relaxed">確定要清除雲端上所有小組的練習紀錄，重新開始新一輪練習嗎？</p>
+      <div class="flex gap-2 pt-2">
+        <button onclick="closeClearConfirmModal()" class="w-1/2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-3 rounded-xl text-sm">取消</button>
+        <button onclick="confirmClearAllGroups()" class="w-1/2 bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl text-sm">確認清空</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 頁尾 -->
+  <footer class="text-center text-xs text-slate-400 py-1">
+    樂華天主教小學 · 中文科修辭結構配對與總結練習（錯誤是學習的好機會）
+  </footer>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // 已核對之 miss-yeung 專案設定（使用獨立資料表 lehua_5d_similes_table，不與其他練習衝突）
+    const firebaseConfig = {
+      apiKey: "AIzaSyBwcfOwE_vRuLlVFracCLULSXbOJOpGFm4",
+      authDomain: "miss-yeung.firebaseapp.com",
+      projectId: "miss-yeung",
+      storageBucket: "miss-yeung.firebasestorage.app",
+      messagingSenderId: "620554486160",
+      appId: "1:620554486160:web:c14f92bb83586b8d027315"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const TABLE_COL = collection(db, 'lehua_5d_similes_table');
+
+    function initCloudSync() {
+      try {
+        onSnapshot(TABLE_COL, (snapshot) => {
+          updateSyncBadge('🟢 雲端即時同步中', 'emerald');
+          const merged = {};
+          snapshot.forEach((docSnap) => {
+            merged[docSnap.id] = docSnap.data();
+          });
+          allGroupsState = merged;
+          localStorage.setItem('five_groups_table_v1', JSON.stringify(merged));
+
+          if (!document.getElementById('group-select-view').classList.contains('hidden')) {
+            renderLeaderButtons();
+          }
+          if (!document.getElementById('overview-view').classList.contains('hidden')) {
+            renderFiveGroupsOverview();
+          }
+        }, (err) => {
+          console.error('Firestore 監聽錯誤：', err);
+          updateSyncBadge('⚠️ 連線受阻：' + err.code, 'rose');
+        });
+      } catch (err) {
+        console.error('初始化失敗：', err);
+        updateSyncBadge('⚠️ 雲端連線異常', 'rose');
+      }
+    }
+
+    function updateSyncBadge(text, color) {
+      const badge = document.getElementById('sync-status-badge');
+      if (!badge) return;
+      if (color === 'emerald') {
+        badge.className = 'bg-emerald-50 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5 transition';
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> ${text}`;
+      } else if (color === 'amber') {
+        badge.className = 'bg-amber-50 text-amber-800 font-bold text-xs px-3 py-1.5 rounded-xl border border-amber-300 flex items-center gap-1.5 transition';
+        badge.innerHTML = text;
+      } else {
+        badge.className = 'bg-rose-50 text-rose-700 font-bold text-xs px-3 py-1.5 rounded-xl border border-rose-200 flex items-center gap-1.5 transition';
+        badge.innerHTML = text;
+      }
+    }
+
+    // 五組組長資料
+    const groupsConfig = [
+      { id: 1, leader: "張梓馨" },
+      { id: 2, leader: "關心穎" },
+      { id: 3, leader: "梁晞蕾" },
+      { id: 4, leader: "李曉琳" },
+      { id: 5, leader: "盧煒傑" }
+    ];
+
+    // 頂部四張可拖放標籤
+    const availableTags = [
+      { id: 'yuci', label: '喻詞' },
+      { id: 'benti', label: '本體' },
+      { id: 'xici', label: '繫詞' },
+      { id: 'yuti', label: '喻體' }
+    ];
+
+    // 三道練習題資料
+    const questions = [
+      {
+        id: 1,
+        speech: "第一題：星星像鑽石。",
+        tokens: [
+          { text: "星星", expectedTag: "benti", hasSlot: true },
+          { text: "像", expectedTag: "yuci", hasSlot: true },
+          { text: "鑽石", expectedTag: "yuti", hasSlot: true },
+          { text: "。", expectedTag: null, hasSlot: false }
+        ],
+        resultLabel: "明喻句",
+        bannerBg: "bg-[#fde047]"
+      },
+      {
+        id: 2,
+        speech: "第二題：月亮是一隻小船。",
+        tokens: [
+          { text: "月亮", expectedTag: "benti", hasSlot: true },
+          { text: "是", expectedTag: "xici", hasSlot: true },
+          { text: "一隻小船", expectedTag: "yuti", hasSlot: true },
+          { text: "。", expectedTag: null, hasSlot: false }
+        ],
+        resultLabel: "暗喻句",
+        bannerBg: "bg-[#fbcfe8]"
+      },
+      {
+        id: 3,
+        speech: "第三題：他用竹枝似的手指遞給我一本書。",
+        tokens: [
+          { text: "他用", expectedTag: null, hasSlot: false },
+          { text: "竹枝", expectedTag: "yuti", hasSlot: true },
+          { text: "似的", expectedTag: "yuci", hasSlot: true },
+          { text: "手指", expectedTag: "benti", hasSlot: true },
+          { text: "遞給我一本書。", expectedTag: null, hasSlot: false }
+        ],
+        resultLabel: "明喻句",
+        bannerBg: "bg-[#fde047]"
+      }
+    ];
+
+    // 儲存 5 組的作答紀錄
+    let allGroupsState = JSON.parse(localStorage.getItem('five_groups_table_v1') || '{}');
+
+    let activeGroupId = null;
+    let currentQIndex = 0;
+    let slotPlacements = {};
+    let selectedTagId = null;
+    let touchDragEl = null;
+    let touchDragTagId = null;
+
+    // 表格打勾狀態
+    let tableChecks = {
+      ming: { benti: false, yuci: false, xici: false, yuti: false },
+      an: { benti: false, yuci: false, xici: false, yuti: false }
+    };
+
+    // 渲染首頁 5 位組長按鍵
+    function renderLeaderButtons() {
+      const grid = document.getElementById('leader-buttons-grid');
+      grid.innerHTML = '';
+
+      groupsConfig.forEach((g, idx) => {
+        const record = allGroupsState[String(g.id)];
+        const isDone = record && record.submitted;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `p-5 rounded-2xl border-3 text-left transition flex items-center justify-between shadow-xs ${
+          isDone
+            ? 'bg-emerald-50/70 border-emerald-400 hover:bg-emerald-100/70'
+            : 'bg-slate-50 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50'
+        }`;
+        btn.onclick = () => enterGroupPractice(g.id);
+
+        btn.innerHTML = `
+          <div>
+            <div class="text-xs font-bold text-slate-400">第 ${idx + 1} 組 · 組長</div>
+            <div class="text-2xl font-black text-slate-800 mt-0.5">${g.leader}</div>
+          </div>
+          <div class="shrink-0">
+            ${
+              isDone
+                ? '<span class="bg-emerald-600 text-white text-xs font-black px-3 py-1.5 rounded-xl">已提交 ✔</span>'
+                : '<span class="bg-indigo-600 text-white text-xs font-black px-3 py-1.5 rounded-xl">進入練習 ➤</span>'
+            }
+          </div>
+        `;
+        grid.appendChild(btn);
+      });
+    }
+
+    // 點選組長按鍵後進入練習
+    function enterGroupPractice(groupId) {
+      activeGroupId = groupId;
+      const group = groupsConfig.find(g => g.id === groupId);
+
+      document.getElementById('leader-name-text').innerText = group.leader;
+      document.getElementById('current-group-badge').classList.remove('hidden');
+      document.getElementById('step-indicator').classList.remove('hidden');
+
+      const saved = allGroupsState[String(groupId)];
+      if (saved && saved.checks) {
+        tableChecks = JSON.parse(JSON.stringify(saved.checks));
+      } else {
+        tableChecks = {
+          ming: { benti: false, yuci: false, xici: false, yuti: false },
+          an: { benti: false, yuci: false, xici: false, yuti: false }
+        };
+      }
+      syncChecklistCellsUI();
+
+      switchView('drag-stage-view');
+      loadQuestion(0);
+    }
+
+    // 初始化當前題目
+    function loadQuestion(idx) {
+      currentQIndex = idx;
+      slotPlacements = {};
+      selectedTagId = null;
+
+      document.getElementById('step-indicator').innerText = `第 ${idx + 1} 題 / 共 ${questions.length} 題`;
+      document.getElementById('revealed-type-box').classList.add('hidden');
+      document.getElementById('hint-message').classList.add('hidden');
+
+      renderTagsPool();
+      renderSentenceAndSlots();
+    }
+
+    // 渲染頂部四張標籤卡
+    function renderTagsPool() {
+      const pool = document.getElementById('tags-pool');
+      pool.innerHTML = '';
+
+      const placedTags = Object.values(slotPlacements);
+
+      availableTags.forEach(tag => {
+        const isUsed = placedTags.includes(tag.id);
+        const card = document.createElement('div');
+        card.id = `tag-card-${tag.id}`;
+        card.draggable = !isUsed;
+        card.className = `tag-card py-3.5 px-4 text-center text-2xl sm:text-3xl font-black text-slate-900 ${
+          isUsed ? 'used-card' : ''
+        } ${selectedTagId === tag.id ? 'selected-for-tap' : ''}`;
+        card.innerText = tag.label;
+
+        if (!isUsed) {
+          card.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', tag.id);
+            selectTagForTap(tag.id);
+          });
+
+          card.addEventListener('touchstart', (e) => {
+            selectTagForTap(tag.id);
+            touchDragTagId = tag.id;
+
+            const rect = card.getBoundingClientRect();
+            touchDragEl = card.cloneNode(true);
+            touchDragEl.style.position = 'fixed';
+            touchDragEl.style.width = rect.width + 'px';
+            touchDragEl.style.left = rect.left + 'px';
+            touchDragEl.style.top = rect.top + 'px';
+            touchDragEl.style.zIndex = '9999';
+            touchDragEl.style.opacity = '0.92';
+            touchDragEl.style.pointerEvents = 'none';
+            document.body.appendChild(touchDragEl);
+          }, { passive: true });
+
+          card.addEventListener('touchmove', (e) => {
+            if (!touchDragEl) return;
+            const touch = e.touches[0];
+            touchDragEl.style.left = (touch.clientX - touchDragEl.offsetWidth / 2) + 'px';
+            touchDragEl.style.top = (touch.clientY - touchDragEl.offsetHeight / 2) + 'px';
+            highlightSlotUnderPoint(touch.clientX, touch.clientY);
+          }, { passive: true });
+
+          card.addEventListener('touchend', (e) => {
+            if (!touchDragEl) return;
+            const touch = e.changedTouches[0];
+            document.body.removeChild(touchDragEl);
+            touchDragEl = null;
+
+            clearSlotHighlights();
+            const targetSlotIdx = getSlotIndexUnderPoint(touch.clientX, touch.clientY);
+            if (touchDragTagId && targetSlotIdx !== null) {
+              attemptPlaceTagInSlot(touchDragTagId, targetSlotIdx);
+            }
+            touchDragTagId = null;
+          });
+
+          card.addEventListener('click', () => {
+            selectTagForTap(tag.id);
+            speakText(tag.label);
+          });
+        }
+
+        pool.appendChild(card);
+      });
+    }
+
+    // 渲染句子與正下方的方格
+    function renderSentenceAndSlots() {
+      const q = questions[currentQIndex];
+      const container = document.getElementById('sentence-slots-grid');
+      container.innerHTML = '';
+
+      q.tokens.forEach((tok, idx) => {
+        const col = document.createElement('div');
+        col.className = 'flex flex-col items-center gap-3';
+
+        const wordEl = document.createElement('div');
+        wordEl.className = 'text-2xl sm:text-3xl font-black text-slate-900 tracking-wider px-1';
+        wordEl.innerText = tok.text;
+        col.appendChild(wordEl);
+
+        if (tok.hasSlot) {
+          const placedTagId = slotPlacements[idx];
+          const placedTagObj = availableTags.find(t => t.id === placedTagId);
+
+          const slotBox = document.createElement('div');
+          slotBox.id = `slot-box-${idx}`;
+          slotBox.dataset.slotIndex = idx;
+          slotBox.className = `slot-box w-24 sm:w-28 h-16 sm:h-20 flex items-center justify-center text-xl sm:text-2xl font-black cursor-pointer ${
+            placedTagObj ? 'slot-filled text-slate-900' : 'text-slate-300'
+          }`;
+          slotBox.innerText = placedTagObj ? placedTagObj.label : '';
+
+          slotBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (!slotPlacements[idx]) slotBox.classList.add('slot-hover');
+          });
+          slotBox.addEventListener('dragleave', () => {
+            slotBox.classList.remove('slot-hover');
+          });
+          slotBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            slotBox.classList.remove('slot-hover');
+            const tagId = e.dataTransfer.getData('text/plain');
+            if (tagId) attemptPlaceTagInSlot(tagId, idx);
+          });
+
+          slotBox.addEventListener('click', () => {
+            if (selectedTagId) {
+              attemptPlaceTagInSlot(selectedTagId, idx);
+            }
+          });
+
+          col.appendChild(slotBox);
+        }
+
+        container.appendChild(col);
+      });
+    }
+
+    function getSlotIndexUnderPoint(x, y) {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return null;
+      const slotEl = el.closest('[data-slot-index]');
+      return slotEl ? parseInt(slotEl.dataset.slotIndex, 10) : null;
+    }
+
+    function highlightSlotUnderPoint(x, y) {
+      clearSlotHighlights();
+      const idx = getSlotIndexUnderPoint(x, y);
+      if (idx !== null && !slotPlacements[idx]) {
+        document.getElementById(`slot-box-${idx}`).classList.add('slot-hover');
+      }
+    }
+
+    function clearSlotHighlights() {
+      document.querySelectorAll('.slot-box').forEach(el => el.classList.remove('slot-hover'));
+    }
+
+    function selectTagForTap(tagId) {
+      selectedTagId = (selectedTagId === tagId) ? null : tagId;
+      renderTagsPool();
+    }
+
+    // 驗證並放置標籤至方格
+    function attemptPlaceTagInSlot(tagId, slotIdx) {
+      const q = questions[currentQIndex];
+      const targetToken = q.tokens[slotIdx];
+      if (!targetToken || !targetToken.hasSlot || slotPlacements[slotIdx]) return;
+
+      const hintEl = document.getElementById('hint-message');
+
+      if (tagId === targetToken.expectedTag) {
+        slotPlacements[slotIdx] = tagId;
+        selectedTagId = null;
+        hintEl.classList.add('hidden');
+        renderTagsPool();
+        renderSentenceAndSlots();
+        checkQuestionCompleted();
+      } else {
+        const slotBox = document.getElementById(`slot-box-${slotIdx}`);
+        slotBox.classList.remove('shake-box');
+        void slotBox.offsetWidth;
+        slotBox.classList.add('shake-box');
+
+        const chosenTag = availableTags.find(t => t.id === tagId);
+        hintEl.classList.remove('hidden');
+        hintEl.innerText = `💡 再想一想：「${targetToken.text}」不是「${chosenTag.label}」喔，請試試其他標籤！`;
+      }
+    }
+
+    // 檢查本題三個方格是否全部正確完成
+    function checkQuestionCompleted() {
+      const q = questions[currentQIndex];
+      const requiredSlots = q.tokens.map((t, i) => t.hasSlot ? i : null).filter(i => i !== null);
+      const allDone = requiredSlots.every(i => slotPlacements[i] === q.tokens[i].expectedTag);
+
+      if (allDone) {
+        const box = document.getElementById('revealed-type-box');
+        const banner = document.getElementById('revealed-type-banner');
+        const textEl = document.getElementById('revealed-type-text');
+        const nextBtn = document.getElementById('next-step-btn');
+
+        banner.className = `border-4 border-slate-900 rounded-2xl py-4 px-8 ${q.bannerBg} shadow-md`;
+        textEl.innerText = q.resultLabel;
+
+        if (currentQIndex < questions.length - 1) {
+          nextBtn.innerText = `➡️ 進入第 ${currentQIndex + 2} 題`;
+        } else {
+          nextBtn.innerText = '➡️ 進入下一頁：在表格上打勾';
+        }
+
+        box.classList.remove('hidden');
+        try { confetti({ particleCount: 65, spread: 55, origin: { y: 0.7 } }); } catch (e) {}
+      }
+    }
+
+    // 前往下一題或打勾表格頁
+    function goToNextPart() {
+      if (currentQIndex < questions.length - 1) {
+        loadQuestion(currentQIndex + 1);
+      } else {
+        switchView('checklist-stage-view');
+        document.getElementById('step-indicator').innerText = '總結表格：打勾練習';
+      }
+    }
+
+    // 同步勾選表格 UI
+    function syncChecklistCellsUI() {
+      ['ming', 'an'].forEach(r => {
+        ['benti', 'yuci', 'xici', 'yuti'].forEach(c => {
+          const cell = document.getElementById(`cell-${r}-${c}`);
+          if (cell) {
+            cell.innerHTML = tableChecks[r][c]
+              ? '<span class="text-indigo-700 text-3xl sm:text-4xl font-black">✓</span>'
+              : '';
+          }
+        });
+      });
+    }
+
+    // 點擊表格儲存格切換打勾狀態（不設對錯批改）
+    function toggleCheckCell(row, col) {
+      tableChecks[row][col] = !tableChecks[row][col];
+      syncChecklistCellsUI();
+    }
+
+    // 清空當前小組的打勾
+    function resetCurrentGroupChecklist() {
+      tableChecks = {
+        ming: { benti: false, yuci: false, xici: false, yuti: false },
+        an: { benti: false, yuci: false, xici: false, yuti: false }
+      };
+      syncChecklistCellsUI();
+    }
+
+    // 提交本組勾選表格答案至 Firebase 雲端，並進入 5 組答案總覽頁（不批改對錯）
+    async function submitGroupPractice() {
+      const submitBtn = document.getElementById('submit-practice-btn');
+      const originalHtml = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>⏳</span> 正在傳送給老師...';
+
+      const groupObj = groupsConfig.find(g => g.id === activeGroupId);
+      const payload = {
+        groupId: activeGroupId,
+        leader: groupObj ? groupObj.leader : '',
+        submitted: true,
+        checks: JSON.parse(JSON.stringify(tableChecks)),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      allGroupsState[String(activeGroupId)] = payload;
+      localStorage.setItem('five_groups_table_v1', JSON.stringify(allGroupsState));
+
+      try {
+        await setDoc(doc(db, 'lehua_5d_similes_table', String(activeGroupId)), payload);
+      } catch (err) {
+        console.error('寫入 Firebase 失敗：', err);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalHtml;
+      }
+
+      showOverviewView();
+    }
+
+    // 顯示 5 組答案總覽（同一頁看到 5 組各自的勾選表，不批改對錯）
+    function showOverviewView() {
+      document.getElementById('current-group-badge').classList.add('hidden');
+      document.getElementById('step-indicator').classList.add('hidden');
+      switchView('overview-view');
+      renderFiveGroupsOverview();
+    }
+
+    function renderFiveGroupsOverview() {
+      const grid = document.getElementById('five-groups-grid');
+      grid.innerHTML = '';
+
+      groupsConfig.forEach((g, idx) => {
+        const rec = allGroupsState[String(g.id)];
+        const isSubmitted = rec && rec.submitted;
+
+        const renderTick = (row, col) => {
+          if (!isSubmitted) return '<span class="text-slate-300 text-xs">-</span>';
+          return rec.checks[row][col]
+            ? '<span class="text-indigo-700 text-xl font-black">✓</span>'
+            : '';
+        };
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl border-2 border-slate-300 shadow-sm overflow-hidden flex flex-col';
+
+        card.innerHTML = `
+          <div class="bg-slate-800 text-white px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+              <span class="bg-indigo-500 text-white text-xs font-black px-2 py-0.5 rounded-md">第 ${idx + 1} 組</span>
+              <span class="font-black text-base">${g.leader}</span>
+            </div>
+            <button onclick="enterGroupPractice(${g.id})" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-2.5 py-1 rounded-lg font-bold transition">
+              ${isSubmitted ? '✏️ 修改' : '進入作答'}
+            </button>
+          </div>
+
+          <div class="p-3 bg-slate-50 flex-1 flex flex-col justify-center">
+            ${
+              isSubmitted
+                ? `
+                  <table class="w-full text-center border-2 border-slate-800 bg-white text-xs sm:text-sm font-black">
+                    <thead>
+                      <tr class="bg-slate-100 border-b-2 border-slate-800">
+                        <th class="py-2 px-1 border-r border-slate-800">比喻法</th>
+                        <th class="py-2 px-1 border-r border-slate-800">本體</th>
+                        <th class="py-2 px-1 border-r border-slate-800">喻詞</th>
+                        <th class="py-2 px-1 border-r border-slate-800">繫詞</th>
+                        <th class="py-2 px-1">喻體</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="bg-amber-50/60 border-b border-slate-800">
+                        <td class="py-2.5 px-1 bg-amber-100/80 border-r border-slate-800">明喻</td>
+                        <td class="py-2.5 px-1 border-r border-slate-800">${renderTick('ming', 'benti')}</td>
+                        <td class="py-2.5 px-1 border-r border-slate-800">${renderTick('ming', 'yuci')}</td>
+                        <td class="py-2.5 px-1 border-r border-slate-800">${renderTick('ming', 'xici')}</td>
+                        <td class="py-2.5 px-1">${renderTick('ming', 'yuti')}</td>
+                      </tr>
+                      <tr class="bg-pink-50/60">
+                        <td class="py-2.5 px-1 bg-pink-100/80 border-r border-slate-800">暗喻</td>
+                        <td class="py-2.5 px-1 border-r border-slate-800">${renderTick('an', 'benti')}</td>
+                        <td class="py-2.5 px-1 border-r border-slate-800">${renderTick('an', 'yuci')}</td>
+                        <td class="py-2.5 px-1 border-r border-slate-800">${renderTick('an', 'xici')}</td>
+                        <td class="py-2.5 px-1">${renderTick('an', 'yuti')}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                `
+                : `<div class="py-8 text-center text-xs font-bold text-slate-400">⏳ 等待第 ${idx + 1} 組（${g.leader}）提交練習...</div>`
+            }
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function backToGroupSelect() {
+      activeGroupId = null;
+      document.getElementById('current-group-badge').classList.add('hidden');
+      document.getElementById('step-indicator').classList.add('hidden');
+      renderLeaderButtons();
+      switchView('group-select-view');
+    }
+
+    function openClearConfirmModal() {
+      document.getElementById('clear-confirm-modal').classList.remove('hidden');
+    }
+
+    function closeClearConfirmModal() {
+      document.getElementById('clear-confirm-modal').classList.add('hidden');
+    }
+
+    async function confirmClearAllGroups() {
+      allGroupsState = {};
+      localStorage.removeItem('five_groups_table_v1');
+      closeClearConfirmModal();
+      renderFiveGroupsOverview();
+
+      try {
+        for (const g of groupsConfig) {
+          await setDoc(doc(db, 'lehua_5d_similes_table', String(g.id)), {
+            groupId: g.id,
+            leader: g.leader,
+            submitted: false,
+            checks: {
+              ming: { benti: false, yuci: false, xici: false, yuti: false },
+              an: { benti: false, yuci: false, xici: false, yuti: false }
+            }
+          });
+        }
+      } catch (err) {
+        console.error('清空 Firebase 失敗：', err);
+      }
+    }
+
+    function switchView(viewId) {
+      ['group-select-view', 'drag-stage-view', 'checklist-stage-view', 'overview-view'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+      });
+      document.getElementById(viewId).classList.remove('hidden');
+    }
+
+    function speakCurrentSentence() {
+      speakText(questions[currentQIndex].speech);
+    }
+
+    function speakText(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-HK';
+        u.rate = 0.9;
+        window.speechSynthesis.speak(u);
+      }
+    }
+
+    // 掛載至 window 供 HTML onclick 呼叫
+    window.showOverviewView = showOverviewView;
+    window.backToGroupSelect = backToGroupSelect;
+    window.openClearConfirmModal = openClearConfirmModal;
+    window.closeClearConfirmModal = closeClearConfirmModal;
+    window.confirmClearAllGroups = confirmClearAllGroups;
+    window.enterGroupPractice = enterGroupPractice;
+    window.goToNextPart = goToNextPart;
+    window.toggleCheckCell = toggleCheckCell;
+    window.resetCurrentGroupChecklist = resetCurrentGroupChecklist;
+    window.submitGroupPractice = submitGroupPractice;
+    window.speakCurrentSentence = speakCurrentSentence;
+    window.speakText = speakText;
+
+    // 初始化首頁組長按鈕並啟動雲端即時同步
+    renderLeaderButtons();
+    initCloudSync();
+  </script>
+</body>
+</html>
